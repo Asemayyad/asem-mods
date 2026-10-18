@@ -56,6 +56,10 @@ Everything can be switched on or off in the ASEM Mods app. Most changes apply ri
 
 <p align="center"><img src="design/asem_mods_mockup.png" alt="ASEM Mods app, dark and light" width="900"></p>
 
+## What's new in v6.1
+
+- Fixed: the per-app volume (mixer) button sometimes didn't show in **portrait**. XOS keeps separate portrait and landscape volume panels, and now both stay up to date.
+
 ## What's new in v6.0
 
 - **Per-app volume** in the side volume panel: a separate slider for each playing app, showing its icon.

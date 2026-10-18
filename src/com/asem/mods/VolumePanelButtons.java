@@ -48,13 +48,21 @@ final class VolumePanelButtons {
     // per-app sliders currently shown in the panel
     private static final java.util.List<View> APP_ROWS = new java.util.ArrayList<>();
     private static final java.util.List<String> APP_PKGS = new java.util.ArrayList<>();
-    private static ImageView mixerIcon;
-    private static View mixerBtn;
+    /** XOS keeps separate panels (portrait / landscape): everything below is kept per panel */
+    private static final class Panel {
+        ImageView mixerIcon; View mixerBtn;
+        int appExtra, colMin, baseMain = -1, baseRoot = -1, setMain = -1, setRoot = -1;
+    }
+    private static final java.util.Map<Object, Panel> PANELS = java.util.Collections.synchronizedMap(new java.util.WeakHashMap<>());
+    private static Panel panel(Object dlg) {
+        Panel p = PANELS.get(dlg);
+        if (p == null) { p = new Panel(); PANELS.put(dlg, p); }
+        return p;
+    }
+    private static Object rowsDlg;                 // panel the per-app sliders are open in
     private static View buttonsCol;
     // XOS gives the panel root and the slider block FIXED widths (one slider). Extra width we add:
     // per-app sliders (appExtra) and, in landscape, the row of buttons (colMin = width it needs).
-    private static int appExtra, colMin;
-    private static int baseMain = -1, baseRoot = -1, setMain = -1, setRoot = -1;
     private static final int ROW_GAP_DP = 10;
 
     private VolumePanelButtons() {}
@@ -177,11 +185,12 @@ final class VolumePanelButtons {
                 } catch (Throwable t) { log("app volume", t); }
             });
             b.setContentDescription("App volume");
-            mixerIcon = iv;
-            mixerBtn = b;
+            Panel pn = panel(dlg);
+            pn.mixerIcon = iv;
+            pn.mixerBtn = b;
             col.addView(b);
-            // only while 2+ apps play sound; follows apps starting / stopping
-            b.setVisibility(AppVolume.playing().size() >= 2 ? View.VISIBLE : View.GONE);
+            // only while 2+ apps play sound; checked again every time this panel is drawn
+            b.setVisibility(AppVolume.count >= 2 ? View.VISIBLE : View.GONE);
             AppVolume.setListener(() -> b.post(() -> {
                 try { onPlayingChanged(dlg); } catch (Throwable t) { log("playing", t); }
             }));
@@ -190,11 +199,10 @@ final class VolumePanelButtons {
         RelativeLayout.LayoutParams lp = new RelativeLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT);
         RelativeLayout.LayoutParams mlp = (RelativeLayout.LayoutParams) main.getLayoutParams();
-        baseMain = baseRoot = setMain = setRoot = -1;
-        appExtra = 0;
-        colMin = 0;
-        APP_ROWS.clear();
-        APP_PKGS.clear();
+        Panel st = panel(dlg);
+        st.baseMain = st.baseRoot = st.setMain = st.setRoot = -1;
+        st.appExtra = 0;
+        st.colMin = 0;
         if (land) {
             // landscape: a row at the bottom of the panel's outer frame, under the slider; the panel
             // gets that much bottom padding so nothing overlaps, and the row's right edge follows the
@@ -204,7 +212,7 @@ final class VolumePanelButtons {
                     ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.RIGHT);
             root.addView(col, flp);
             col.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
-            colMin = col.getMeasuredWidth() + dp(ctx, 40);
+            st.colMin = col.getMeasuredWidth() + dp(ctx, 40);
             View ringer = dialogView.findViewById(res(ctx, "id", "ringer"));
             int basePad = dialogView.getPaddingBottom();
             int[] ra = new int[2], ma = new int[2], ga = new int[2];
@@ -240,7 +248,14 @@ final class VolumePanelButtons {
         }
         main.setLayoutParams(mlp);
         dialogView.getViewTreeObserver().addOnPreDrawListener(() -> {
-            try { fixWidths(dlg); } catch (Throwable t) { log("widths", t); }
+            try {
+                Panel pp = panel(dlg);
+                if (pp.mixerBtn != null) {        // this panel's mixer follows the apps playing now
+                    int want = AppVolume.count >= 2 ? View.VISIBLE : View.GONE;
+                    if (pp.mixerBtn.getVisibility() != want) pp.mixerBtn.setVisibility(want);
+                }
+                fixWidths(dlg);
+            } catch (Throwable t) { log("widths", t); }
             return true;
         });
 
@@ -263,8 +278,12 @@ final class VolumePanelButtons {
     /** apps started / stopped: show the mixer button only for 2+ apps, keep the open sliders in sync */
     private static void onPlayingChanged(Object dlg) throws Exception {
         java.util.List<AppVolume.App> apps = AppVolume.playing();
-        if (mixerBtn != null) mixerBtn.setVisibility(apps.size() >= 2 ? View.VISIBLE : View.GONE);
+        synchronized (PANELS) {
+            for (Panel p : PANELS.values())
+                if (p.mixerBtn != null) p.mixerBtn.setVisibility(apps.size() >= 2 ? View.VISIBLE : View.GONE);
+        }
         if (APP_ROWS.isEmpty()) return;
+        if (rowsDlg != null) dlg = rowsDlg;
         if (apps.size() < 2) { closeAppRows(); return; }
         java.util.List<String> now = new java.util.ArrayList<>();
         for (AppVolume.App a : apps) now.add(a.pkg);
@@ -318,11 +337,13 @@ final class VolumePanelButtons {
             APP_PKGS.add(a.pkg);
         }
         int rowW = template.getWidth() > 0 ? template.getWidth() : dimen(ctx, "volume_dialog_panel_width", 52);
-        appExtra = APP_ROWS.size() * (rowW + dp(ctx, ROW_GAP_DP));
+        Panel pn = panel(dlg);
+        rowsDlg = dlg;
+        pn.appExtra = APP_ROWS.size() * (rowW + dp(ctx, ROW_GAP_DP));
         fixWidths(dlg);
-        if (mixerIcon != null) {
+        if (pn.mixerIcon != null) {
             Integer c = Hook.iconColorOrNull(ctx);
-            mixerIcon.setImageTintList(ColorStateList.valueOf(c != null ? c : 0xFF2E9D6B));
+            pn.mixerIcon.setImageTintList(ColorStateList.valueOf(c != null ? c : 0xFF2E9D6B));
         }
         log("app sliders: " + APP_PKGS, null);
     }
@@ -331,33 +352,35 @@ final class VolumePanelButtons {
         for (View r : APP_ROWS) if (r.getParent() instanceof ViewGroup) ((ViewGroup) r.getParent()).removeView(r);
         APP_ROWS.clear();
         APP_PKGS.clear();
-        appExtra = 0;
-        if (lastDlg != null) try { fixWidths(lastDlg); } catch (Throwable t) { log("widths", t); }
-        if (mixerIcon != null) mixerIcon.setImageTintList(ColorStateList.valueOf(0xFF000000));
+        Object d = rowsDlg;
+        rowsDlg = null;
+        if (d == null) return;
+        Panel pn = panel(d);
+        pn.appExtra = 0;
+        try { fixWidths(d); } catch (Throwable t) { log("widths", t); }
+        if (pn.mixerIcon != null) pn.mixerIcon.setImageTintList(ColorStateList.valueOf(0xFF000000));
     }
-
-    private static Object lastDlg;
 
     /** XOS's fixed widths + what we need: slider block grows by the app sliders, root also fits the buttons */
     private static void fixWidths(Object dlg) {
-        lastDlg = dlg;
+        Panel st = panel(dlg);
         View main = (View) XposedHelpers.getObjectField(dlg, "mMainContainer");
         View root = (View) XposedHelpers.getObjectField(dlg, "mDialogRootView");
         if (main != null) {
             ViewGroup.LayoutParams l = main.getLayoutParams();
             if (l != null && l.width > 0) {
-                if (l.width != setMain) baseMain = l.width;          // XOS (re)set it
-                int want = baseMain + appExtra;
-                setMain = want;
+                if (l.width != st.setMain) st.baseMain = l.width;    // XOS (re)set it
+                int want = st.baseMain + st.appExtra;
+                st.setMain = want;
                 if (l.width != want) { l.width = want; main.setLayoutParams(l); }
             }
         }
         if (root != null) {
             ViewGroup.LayoutParams l = root.getLayoutParams();
             if (l != null && l.width > 0) {
-                if (l.width != setRoot) baseRoot = l.width;
-                int want = Math.max(baseRoot + appExtra, colMin);
-                setRoot = want;
+                if (l.width != st.setRoot) st.baseRoot = l.width;
+                int want = Math.max(st.baseRoot + st.appExtra, st.colMin);
+                st.setRoot = want;
                 if (l.width != want) { l.width = want; root.setLayoutParams(l); }
             }
         }

@@ -67,11 +67,13 @@ final class AppVolume {
         am.registerAudioPlaybackCallback(new AudioManager.AudioPlaybackCallback() {
             @Override public void onPlaybackConfigChanged(List<AudioPlaybackConfiguration> configs) {
                 apply(configs);
+                count = playing().size();
                 Runnable l = listener;
                 if (l != null) l.run();
             }
         }, new Handler(Looper.getMainLooper()));
         apply(am.getActivePlaybackConfigurations());
+        count = playing().size();
         applyMix();
         // the ASEM Mods app pokes this when a switch changes
         ctx.getContentResolver().registerContentObserver(android.provider.Settings.Global.getUriFor("asem_qs_refresh"), false,
@@ -163,6 +165,9 @@ final class AppVolume {
     }
 
     static void setListener(Runnable r) { listener = r; }
+
+    /** apps playing media right now (updated on every playback change) */
+    static volatile int count;
 
     private static boolean mediaLike(AudioPlaybackConfiguration c) {
         AudioAttributes a = c.getAudioAttributes();
