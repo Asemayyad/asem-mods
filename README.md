@@ -1,3 +1,8 @@
+<p align="center">
+<b>بسم الله الرحمن الرحيم</b><br>
+<i>In the name of Allah, the Most Gracious, the Most Merciful</i>
+</p>
+
 <p align="center"><img src="design/asem_mods_banner.png" alt="ASEM Mods"></p>
 
 <h1 align="center">ASEM Mods</h1>
