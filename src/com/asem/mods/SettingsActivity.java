@@ -505,6 +505,9 @@ public class SettingsActivity extends Activity {
         val.setText(lv[cur]);
         s.addView(seg(lv, cur, i -> { prefs.edit().putInt("haptic_level", i).commit(); val.setText(lv[i]); }), lp(MATCH, WRAP));
         setEnabledDeep(s, hap.isChecked());
+        switchItem(c, res("ic_s_mixer"), t("Per-app volume button", "زر صوت كل تطبيق"),
+                t("Apps play together (no auto pause); a slider per app with its icon when 2+ play", "التطبيقات تعمل معاً بدون إيقاف؛ شريط لكل تطبيق بأيقونته عند تشغيل تطبيقين أو أكثر") + restart,
+                "vol_app_btn", true, this::poke);
         switchItem(c, res("ic_s_palette"), t("Slider in your icon color", "شريط الصوت بلون الأيقونات"),
                 t("Off = XOS white", "إيقاف = أبيض XOS"), "vol_icon_color", true, this::poke);
     }

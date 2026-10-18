@@ -23,8 +23,14 @@ Everything can be switched on or off in the ASEM Mods app. Most changes apply ri
 - **Vibration on lock / unlock**, timed to the sound.
 
 ### Volume panel (volume keys)
+- **Per-app volume**: play YouTube while gaming, each at its own volume.
+  - Apps play **together**. Starting music no longer pauses YouTube, and the other way round.
+  - When 2 or more apps are playing, a **mixer button** appears. Tap it to get one slider per app, side by side in XOS style, with the **app's icon** at the bottom.
+  - Each app's level is remembered and used again every time that app plays.
+  - A **call** (phone, WhatsApp, Telegram…) or a **recording** (video, voice recorder, voice note) pauses every playing app.
 - **Sound mode button** on top of the panel. Its icon shows the current mode (sound / vibrate / silent); tap it to switch.
 - **3D haptics button**: the phone vibrates with the beat of music and videos. Strength: Low, Mid or Strong.
+- **Landscape**: the 3D haptics and mixer buttons sit right under the slider (the sound mode button is hidden).
 - The volume slider fill follows your icon color, and the slider icons are white.
 
 ### Quick settings
@@ -44,6 +50,14 @@ Everything can be switched on or off in the ASEM Mods app. Most changes apply ri
 - English and Arabic, with a right-to-left layout in Arabic.
 
 <p align="center"><img src="design/asem_mods_mockup.png" alt="ASEM Mods app, dark and light" width="900"></p>
+
+## What's new in v6.0
+
+- **Per-app volume** in the side volume panel: a separate slider for each playing app, showing its icon.
+- **Apps play together**: one media app no longer pauses another.
+- Calls and recordings still pause everything.
+- **Landscape** layout for the volume panel buttons.
+- New **"Per-app volume button"** switch in the app (Volume panel). Turning it off puts every app back to full volume and restores normal pausing.
 
 ## Requirements
 

@@ -85,6 +85,7 @@ final class MusicHaptics {
                 });
         worker.post(MusicHaptics::watch);
         log("ready (on=" + isEnabled(app) + ")", null);
+        try { AppVolume.init(app); } catch (Throwable t) { log("app volume", t); }
     }
 
     /** Once a second while switched on: run the analyzer only while media is actually playing. */

@@ -41,6 +41,21 @@ final class VolumePanelButtons {
     // Material-style glyph, 24x24: speaker in the middle, vibration bars left and right
     private static final String GLYPH_HAPTICS =
             "M7,9v6h4l5,5V4l-5,5H7z M0,15h2V9H0v6z M3,17h2V7H3v10z M22,9v6h2V9h-2z M19,17h2V7h-2v10z";
+    // mixer: three faders with their knobs at different heights (per-app volume)
+    private static final String GLYPH_MIXER =
+            "M5,3h2v18h-2z M2.5,13h7v3.5h-7z M11,3h2v18h-2z M8.5,6h7v3.5h-7z M17,3h2v18h-2z M14.5,10.5h7v3.5h-7z";
+
+    // per-app sliders currently shown in the panel
+    private static final java.util.List<View> APP_ROWS = new java.util.ArrayList<>();
+    private static final java.util.List<String> APP_PKGS = new java.util.ArrayList<>();
+    private static ImageView mixerIcon;
+    private static View mixerBtn;
+    private static View buttonsCol;
+    // XOS gives the panel root and the slider block FIXED widths (one slider). Extra width we add:
+    // per-app sliders (appExtra) and, in landscape, the row of buttons (colMin = width it needs).
+    private static int appExtra, colMin;
+    private static int baseMain = -1, baseRoot = -1, setMain = -1, setRoot = -1;
+    private static final int ROW_GAP_DP = 10;
 
     private VolumePanelButtons() {}
 
@@ -51,6 +66,34 @@ final class VolumePanelButtons {
                 new XC_MethodHook() {
                     @Override protected void afterHookedMethod(MethodHookParam p) {
                         try { add(p.thisObject); } catch (Throwable t) { log("add", t); }
+                    }
+                });
+        // XOS lets touches through everywhere except its panel views: add our buttons to that area
+        XposedHelpers.findAndHookMethod("com.android.systemui.volume.TrVolumeDialogImpl", cl, "onComputeInternalInsets",
+                "android.view.ViewTreeObserver$InternalInsetsInfo", new XC_MethodHook() {
+                    @Override protected void afterHookedMethod(MethodHookParam p) {
+                        try {
+                            View c = buttonsCol;
+                            if (c == null || !c.isAttachedToWindow() || c.getVisibility() != View.VISIBLE) return;
+                            int[] at = new int[2];
+                            c.getLocationInWindow(at);
+                            Object info = p.args[0];
+                            android.graphics.Region r = (android.graphics.Region) XposedHelpers.getObjectField(info, "touchableRegion");
+                            r.op(at[0], at[1], at[0] + c.getWidth(), at[1] + c.getHeight(), android.graphics.Region.Op.UNION);
+                        } catch (Throwable t) { log("touch area", t); }
+                    }
+                });
+        XposedHelpers.findAndHookMethod("com.android.systemui.volume.TrVolumeDialogImpl", cl, "updateMainHeight", boolean.class,
+                new XC_MethodHook() {
+                    @Override protected void afterHookedMethod(MethodHookParam p) {
+                        try { fixWidths(p.thisObject); } catch (Throwable t) { log("widths", t); }
+                    }
+                });
+        // panel closes: per-app sliders go away (fresh list next time)
+        XposedHelpers.findAndHookMethod("com.android.systemui.volume.TrVolumeDialogImpl", cl, "dismissH", int.class,
+                new XC_MethodHook() {
+                    @Override protected void afterHookedMethod(MethodHookParam p) {
+                        try { closeAppRows(); } catch (Throwable t) { log("close", t); }
                     }
                 });
         log("hooked", null);
@@ -65,12 +108,14 @@ final class VolumePanelButtons {
     }
 
     private static void add(Object dlg) {
-        boolean ringerBtn = Hook.prefOn("vol_ringer_btn"), hapticBtn = Hook.prefOn("vol_haptic_btn");
-        if (!ringerBtn && !hapticBtn) return;
+        boolean ringerBtn = Hook.prefOn("vol_ringer_btn"), hapticBtn = Hook.prefOn("vol_haptic_btn"), appBtn = Hook.prefOn("vol_app_btn");
+        if (!ringerBtn && !hapticBtn && !appBtn) return;
         ViewGroup dialogView = (ViewGroup) XposedHelpers.getObjectField(dlg, "mDialogView");
         if (!(dialogView instanceof RelativeLayout)) { log("unexpected panel layout", null); return; }
         Context ctx = dialogView.getContext();
-        if (ctx.getResources().getConfiguration().orientation != Configuration.ORIENTATION_PORTRAIT) return;
+        boolean land = ctx.getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE;
+        boolean showRinger = ringerBtn && !land;  // landscape: only 3D haptics + per-app volume
+        if (!showRinger && !hapticBtn && !appBtn) return;
         View main = dialogView.findViewById(res(ctx, "id", "main_container"));
         if (main == null) { log("main_container not found", null); return; }
         View ringerBox = (View) XposedHelpers.getObjectField(dlg, "mRinger");
@@ -83,11 +128,12 @@ final class VolumePanelButtons {
         col.setClipChildren(false);
         col.setClipToPadding(false);
         col.setPadding(0, dp(ctx, 10), 0, 0);
+        buttonsCol = col;
 
         AudioManager am = ctx.getSystemService(AudioManager.class);
         final ImageView[] ringerIcon = new ImageView[1];
         final int[] shownMode = {-1};
-        if (ringerBtn) {
+        if (showRinger) {
             ImageView iv = new ImageView(ctx);
             ringerIcon[0] = iv;
             col.addView(button(ctx, ringerBox, capIcon, iv, v -> {
@@ -121,14 +167,82 @@ final class VolumePanelButtons {
             }));
         }
 
+        if (appBtn) {
+            ImageView iv = new ImageView(ctx);
+            iv.setImageDrawable(new Glyph(GLYPH_MIXER));
+            View b = button(ctx, ringerBox, capIcon, iv, v -> {
+                try {
+                    if (APP_ROWS.isEmpty()) openAppRows(dlg); else closeAppRows();
+                    keepOpen(dlg);
+                } catch (Throwable t) { log("app volume", t); }
+            });
+            b.setContentDescription("App volume");
+            mixerIcon = iv;
+            mixerBtn = b;
+            col.addView(b);
+            // only while 2+ apps play sound; follows apps starting / stopping
+            b.setVisibility(AppVolume.playing().size() >= 2 ? View.VISIBLE : View.GONE);
+            AppVolume.setListener(() -> b.post(() -> {
+                try { onPlayingChanged(dlg); } catch (Throwable t) { log("playing", t); }
+            }));
+        }
+
         RelativeLayout.LayoutParams lp = new RelativeLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT);
-        lp.addRule(RelativeLayout.ALIGN_PARENT_TOP);
-        lp.addRule(RelativeLayout.CENTER_HORIZONTAL);
-        dialogView.addView(col, lp);
         RelativeLayout.LayoutParams mlp = (RelativeLayout.LayoutParams) main.getLayoutParams();
-        mlp.addRule(RelativeLayout.BELOW, col.getId());
+        baseMain = baseRoot = setMain = setRoot = -1;
+        appExtra = 0;
+        colMin = 0;
+        APP_ROWS.clear();
+        APP_PKGS.clear();
+        if (land) {
+            // landscape: a row at the bottom of the panel's outer frame, under the slider; the panel
+            // gets that much bottom padding so nothing overlaps, and the row's right edge follows the
+            // slider's real position on screen (XOS shifts its views, so no layout rules here)
+            FrameLayout root = (FrameLayout) XposedHelpers.getObjectField(dlg, "mDialogRootView");
+            FrameLayout.LayoutParams flp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.RIGHT);
+            root.addView(col, flp);
+            col.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
+            colMin = col.getMeasuredWidth() + dp(ctx, 40);
+            View ringer = dialogView.findViewById(res(ctx, "id", "ringer"));
+            int basePad = dialogView.getPaddingBottom();
+            int[] ra = new int[2], ma = new int[2], ga = new int[2];
+            // after every layout: column right under the slider (or under XOS's captions box when shown),
+            // right edges lined up, and only as much room below the panel as the visible buttons need
+            root.getViewTreeObserver().addOnGlobalLayoutListener(() -> {
+                try {
+                    root.getLocationInWindow(ra);
+                    main.getLocationInWindow(ma);
+                    int bottom = ma[1] + main.getHeight();
+                    if (ringer != null && ringer.getVisibility() == View.VISIBLE && ringer.getHeight() > 0) {
+                        ringer.getLocationInWindow(ga);
+                        bottom = Math.max(bottom, ga[1] + ringer.getHeight());
+                    }
+                    int top = Math.max(0, bottom - ra[1] - dp(ctx, 4));
+                    int right = Math.max(0, (ra[0] + root.getWidth()) - (ma[0] + main.getWidth()));
+                    if (flp.topMargin != top || flp.rightMargin != right) {
+                        flp.topMargin = top; flp.rightMargin = right; col.setLayoutParams(flp);
+                    }
+                    col.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
+                    int pad = basePad + col.getMeasuredHeight() + dp(ctx, 4);
+                    if (dialogView.getPaddingBottom() != pad)
+                        dialogView.setPadding(dialogView.getPaddingLeft(), dialogView.getPaddingTop(), dialogView.getPaddingRight(), pad);
+                } catch (Throwable e) { log("landscape buttons", e); }
+            });
+        } else {
+            // portrait: above the media slider - right edges lined up with the slider block
+            lp.addRule(RelativeLayout.ALIGN_PARENT_TOP);
+            lp.addRule(RelativeLayout.ALIGN_RIGHT, main.getId());
+            lp.rightMargin = Math.max(0, (dimen(ctx, "volume_dialog_panel_width", 64) - dimen(ctx, "volume_dialog_width_custom", 48)) / 2);
+            dialogView.addView(col, lp);
+            mlp.addRule(RelativeLayout.BELOW, col.getId());
+        }
         main.setLayoutParams(mlp);
+        dialogView.getViewTreeObserver().addOnPreDrawListener(() -> {
+            try { fixWidths(dlg); } catch (Throwable t) { log("widths", t); }
+            return true;
+        });
 
         // ringer mode can change elsewhere (keys, quick settings): keep the icon right
         if (ringerIcon[0] != null) {
@@ -142,7 +256,172 @@ final class VolumePanelButtons {
                 }
             });
         }
-        log("buttons added (sound mode=" + ringerBtn + ", 3D haptics=" + hapticBtn + ")", null);
+        log((land ? "landscape " : "") + "buttons added (sound mode=" + showRinger + ", 3D haptics=" + hapticBtn + ", app volume=" + appBtn + ")", null);
+    }
+
+    // ------------------------------------------------------------------ per-app volume sliders
+    /** apps started / stopped: show the mixer button only for 2+ apps, keep the open sliders in sync */
+    private static void onPlayingChanged(Object dlg) throws Exception {
+        java.util.List<AppVolume.App> apps = AppVolume.playing();
+        if (mixerBtn != null) mixerBtn.setVisibility(apps.size() >= 2 ? View.VISIBLE : View.GONE);
+        if (APP_ROWS.isEmpty()) return;
+        if (apps.size() < 2) { closeAppRows(); return; }
+        java.util.List<String> now = new java.util.ArrayList<>();
+        for (AppVolume.App a : apps) now.add(a.pkg);
+        if (!now.equals(APP_PKGS)) openAppRows(dlg);
+    }
+
+    /** one XOS slider row per playing app, left of the media slider, with the app icon at the bottom */
+    private static void openAppRows(Object dlg) throws Exception {
+        closeAppRows();
+        ViewGroup rows = (ViewGroup) XposedHelpers.getObjectField(dlg, "mDialogRowsView");
+        Context ctx = rows.getContext();
+        View template = null;
+        for (int i = rows.getChildCount() - 1; i >= 0; i--)
+            if (rows.getChildAt(i).getVisibility() == View.VISIBLE) { template = rows.getChildAt(i); break; }
+        if (template == null) { log("no media slider to copy", null); return; }
+        int sliderId = res(ctx, "id", "volume_row_slider"), contId = res(ctx, "id", "volume_slider_container");
+        View tSlider = template.findViewById(sliderId), tCont = template.findViewById(contId);
+        View tIcon = template.findViewById(res(ctx, "id", "volume_row_icon"));
+        android.view.LayoutInflater li = ((android.app.Dialog) XposedHelpers.getObjectField(dlg, "mDialog")).getLayoutInflater();
+        int layout = res(ctx, "layout", "tr_volume_dialog_custom_row");
+        ClassLoader cl = tSlider.getClass().getClassLoader();
+        for (AppVolume.App a : AppVolume.playing()) {
+            View row = li.inflate(layout, null);
+            View slider = row.findViewById(sliderId), cont = row.findViewById(contId);
+            ViewGroup.LayoutParams sl = slider.getLayoutParams();
+            sl.width = tSlider.getLayoutParams().width;
+            sl.height = tSlider.getLayoutParams().height;
+            slider.setLayoutParams(sl);
+            if (cont != null && tCont != null) {
+                ViewGroup.LayoutParams cp = cont.getLayoutParams();
+                cp.height = tCont.getLayoutParams().height;
+                cont.setLayoutParams(cp);
+            }
+            View settings = row.findViewById(res(ctx, "id", "settings"));
+            if (settings instanceof ImageView) ((ImageView) settings).setImageDrawable(null);
+            View rowIcon = row.findViewById(res(ctx, "id", "volume_row_icon"));
+            if (rowIcon instanceof ImageView) {
+                ((ImageView) rowIcon).setImageDrawable(null);
+                rowIcon.setVisibility(tIcon != null ? tIcon.getVisibility() : View.INVISIBLE);
+                rowIcon.setClickable(false);
+            }
+            glassShadow(slider, tSlider, cl);
+            row.setContentDescription(a.label + " volume");
+            setupAppSlider(dlg, slider, a, cl);
+            LinearLayout.LayoutParams rlp = template.getLayoutParams() instanceof LinearLayout.LayoutParams
+                    ? new LinearLayout.LayoutParams((LinearLayout.LayoutParams) template.getLayoutParams())
+                    : new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            rlp.setMarginEnd(dp(ctx, ROW_GAP_DP));       // space between the sliders
+            rows.addView(row, 0, rlp);
+            APP_ROWS.add(row);
+            APP_PKGS.add(a.pkg);
+        }
+        int rowW = template.getWidth() > 0 ? template.getWidth() : dimen(ctx, "volume_dialog_panel_width", 52);
+        appExtra = APP_ROWS.size() * (rowW + dp(ctx, ROW_GAP_DP));
+        fixWidths(dlg);
+        if (mixerIcon != null) {
+            Integer c = Hook.iconColorOrNull(ctx);
+            mixerIcon.setImageTintList(ColorStateList.valueOf(c != null ? c : 0xFF2E9D6B));
+        }
+        log("app sliders: " + APP_PKGS, null);
+    }
+
+    static void closeAppRows() {
+        for (View r : APP_ROWS) if (r.getParent() instanceof ViewGroup) ((ViewGroup) r.getParent()).removeView(r);
+        APP_ROWS.clear();
+        APP_PKGS.clear();
+        appExtra = 0;
+        if (lastDlg != null) try { fixWidths(lastDlg); } catch (Throwable t) { log("widths", t); }
+        if (mixerIcon != null) mixerIcon.setImageTintList(ColorStateList.valueOf(0xFF000000));
+    }
+
+    private static Object lastDlg;
+
+    /** XOS's fixed widths + what we need: slider block grows by the app sliders, root also fits the buttons */
+    private static void fixWidths(Object dlg) {
+        lastDlg = dlg;
+        View main = (View) XposedHelpers.getObjectField(dlg, "mMainContainer");
+        View root = (View) XposedHelpers.getObjectField(dlg, "mDialogRootView");
+        if (main != null) {
+            ViewGroup.LayoutParams l = main.getLayoutParams();
+            if (l != null && l.width > 0) {
+                if (l.width != setMain) baseMain = l.width;          // XOS (re)set it
+                int want = baseMain + appExtra;
+                setMain = want;
+                if (l.width != want) { l.width = want; main.setLayoutParams(l); }
+            }
+        }
+        if (root != null) {
+            ViewGroup.LayoutParams l = root.getLayoutParams();
+            if (l != null && l.width > 0) {
+                if (l.width != setRoot) baseRoot = l.width;
+                int want = Math.max(baseRoot + appExtra, colMin);
+                setRoot = want;
+                if (l.width != want) { l.width = want; root.setLayoutParams(l); }
+            }
+        }
+    }
+
+    /** same glass shadow XOS gives its own sliders (TrVolumeDialogHelper.setLiquidGlassShadow) */
+    private static void glassShadow(View slider, View template, ClassLoader cl) {
+        try {
+            Class<?> h = XposedHelpers.findClass("com.android.systemui.volume.TrVolumeDialogHelper", cl);
+            Object inst = XposedHelpers.getStaticObjectField(h, "sInstance");
+            Object radius = XposedHelpers.getObjectField(inst, "mCornerRadius");
+            for (java.lang.reflect.Method m : h.getDeclaredMethods())
+                if (m.getName().equals("setLiquidGlassShadow") && m.getParameterCount() == 3) {
+                    m.setAccessible(true);
+                    m.invoke(inst, radius, slider, false);
+                    return;
+                }
+        } catch (Throwable t) { log("glass shadow", t); }
+        slider.setElevation(template.getElevation());
+        slider.setTranslationZ(template.getTranslationZ());
+        slider.setOutlineProvider(template.getOutlineProvider());
+        slider.setClipToOutline(template.getClipToOutline());
+    }
+
+    /** 0..1000 slider = 0..100 % of the media volume for this app; app icon in full color at the bottom */
+    private static void setupAppSlider(Object dlg, View slider, AppVolume.App a, ClassLoader cl) throws Exception {
+        XposedHelpers.setFloatField(slider, "mMin", 0f);
+        XposedHelpers.setFloatField(slider, "mMax", 1000f);
+        slider.getClass().getMethod("setProgress", float.class).invoke(slider, AppVolume.level(a.pkg) * 1000f);
+        if (a.icon != null) {
+            int size = 0;
+            try { size = XposedHelpers.getIntField(slider, "mIconSize"); } catch (Throwable ignored) { }
+            if (size <= 0) size = dp(slider.getContext(), 22);
+            android.graphics.Bitmap bm = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888);
+            Drawable d = a.icon.getConstantState() != null ? a.icon.getConstantState().newDrawable().mutate() : a.icon;
+            d.setBounds(0, 0, size, size);
+            d.draw(new Canvas(bm));
+            XposedHelpers.setObjectField(slider, "mBpIconFg", bm);
+        }
+        Class<?> lc = XposedHelpers.findClass("com.transsion.systemui.widget.TrSeekbar$OnProgressChangedListener", cl);
+        Object listener = java.lang.reflect.Proxy.newProxyInstance(cl, new Class<?>[]{lc}, (proxy, m, args) -> {
+            switch (m.getName()) {
+                case "onProgressChanged":
+                    if ((Boolean) args[2]) AppVolume.setLevel(a.pkg, ((Integer) args[1]) / 1000f, true);
+                    keepOpen(dlg);
+                    return null;
+                case "onStartTrackingTouch":
+                    keepOpen(dlg);
+                    return null;
+                case "onStopTrackingTouch":
+                    try {
+                        int p = (Integer) slider.getClass().getMethod("getProgress").invoke(slider);
+                        AppVolume.setLevel(a.pkg, p / 1000f, true);
+                    } catch (Throwable ignored) { }
+                    keepOpen(dlg);
+                    return null;
+                case "hashCode": return System.identityHashCode(proxy);
+                case "equals": return proxy == args[0];
+                case "toString": return "ASEM app volume " + a.pkg;
+                default: return null;
+            }
+        });
+        slider.getClass().getMethod("setOnProgressChangedListener", lc).invoke(slider, listener);
+        slider.invalidate();
     }
 
     /** One button in the Captions style: white rounded "ringer" background, 22dp icon, same tint. */

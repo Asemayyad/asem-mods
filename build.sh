@@ -13,7 +13,7 @@ AJ="$SDK/platforms/android-35/android.jar"; BT="$SDK/build-tools/35.0.0"
 rm -rf build && mkdir -p build/stubs build/classes build/dex build/res
 javac -nowarn -source 17 -target 17 -cp "$AJ" -d build/stubs $(find stubs -name "*.java") 2>&1 | { grep -E "error" || true; }
 javac -nowarn -source 17 -target 17 -cp "$AJ;$M/build/stubs" -d build/classes src/com/asem/mods/*.java 2>&1 | { grep -E "error|\^" || true; }
-ls build/classes/com/asem/mods/Hook.class >/dev/null
+for c in $(ls src/com/asem/mods/*.java | xargs -n1 basename | sed "s/.java$//"); do ls build/classes/com/asem/mods/$c.class >/dev/null || { echo "BUILD FAILED: $c"; exit 1; }; done
 cmd //c "$BT/d8.bat" --release --min-api 34 --lib "$AJ" --output build/dex $(find build/classes -name "*.class" | tr '\n' ' ')
 "$BT/aapt2.exe" compile --dir res -o build/res/compiled.zip
 "$BT/aapt2.exe" link -I "$AJ" --manifest AndroidManifest.xml -A assets -o build/base.apk build/res/compiled.zip
