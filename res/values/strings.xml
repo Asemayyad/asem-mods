@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ASEM Mods</string>
+    <string name="xposed_description">By Asem (t.me/Asemfuad) - Infinix X6855: power menu Recovery + Restart SystemUI, lock/unlock vibration synced with the sound, Quick Settings tiles in your icon color (Icon > Color), glass home screen icons with silhouettes for all apps.</string>
+    <string-array name="xposed_scope"><item>com.android.systemui</item><item>com.transsion.launcher3</item></string-array>
+</resources>

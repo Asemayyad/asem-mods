@@ -1,0 +1,84 @@
+<p align="center"><img src="design/asem_mods_banner.png" alt="ASEM Mods"></p>
+
+<h1 align="center">ASEM Mods</h1>
+
+<p align="center">
+LSPosed mods for XOS 16 on the <b>Infinix NOTE 50 Pro 4G (X6855)</b><br>
+Made by <b>Asem</b>
+</p>
+
+<p align="center">
+<a href="https://t.me/Asemfuad"><img src="https://img.shields.io/badge/Telegram-@Asemfuad-2CA5E0?logo=telegram&logoColor=white" alt="Telegram"></a>
+<a href="https://instagram.com/asem.dev"><img src="https://img.shields.io/badge/Instagram-@asem.dev-E4405F?logo=instagram&logoColor=white" alt="Instagram"></a>
+</p>
+
+---
+
+## Features
+
+Everything can be switched on or off in the ASEM Mods app. Most changes apply right away, with no reboot.
+
+### Lock screen
+- **Louder lock / unlock sound**: x2, x4, x8, x12, x16 or MAX. The sound is only made louder, never distorted, so it stays clean on the speaker. Includes a **Test sound** button.
+- **Vibration on lock / unlock**, timed to the sound.
+
+### Volume panel (volume keys)
+- **Sound mode button** on top of the panel. Its icon shows the current mode (sound / vibrate / silent); tap it to switch.
+- **3D haptics button**: the phone vibrates with the beat of music and videos. Strength: Low, Mid or Strong.
+- The volume slider fill follows your icon color, and the slider icons are white.
+
+### Quick settings
+- Active tiles use your icon color (Settings > Wallpaper & personalization > Icon > Color).
+
+### Home screen icons
+- **7 icon plate styles**: Stock, Frosted light, Frosted dark, Auto (follows dark / light mode), Tinted, Clear, Solid.
+- **3D effect**: soft shadow and a glossy top light.
+- **Silhouettes for all apps**, so apps without a themed icon match the rest.
+
+### Power menu
+- **Recovery** and **Restart SystemUI** buttons in XOS style. Tap once, then tap again to confirm.
+
+### The app
+- Follows the phone's dark / light mode: black header in dark mode, green header in light mode.
+- Status chips show whether LSPosed, System UI and the launcher are active. A red chip opens the ASEM Mods page in LSPosed.
+- English and Arabic, with a right-to-left layout in Arabic.
+
+<p align="center"><img src="design/asem_mods_mockup.png" alt="ASEM Mods app, dark and light" width="900"></p>
+
+## Requirements
+
+- Infinix NOTE 50 Pro 4G (X6855) on XOS 16
+- Root with Magisk
+- LSPosed (Zygisk)
+
+## Install
+
+1. Download `ASEM_Mods_vX.X_X6855.zip` from [Releases](../../releases).
+2. Flash it in one of these ways:
+   - **Recovery:** Install, then pick the zip.
+   - **Magisk app:** Modules > Install from storage, then pick the zip.
+3. Reboot.
+4. In **LSPosed > Modules > ASEM Mods**, enable the module and tick **System UI** and **XOS Launcher**.
+5. Reboot once more.
+6. Open the **ASEM Mods** app, choose your settings, and tap **Apply to home screen** for the icon styles.
+
+## Uninstall
+
+Disable the module in LSPosed, or remove it in Magisk, then reboot. Everything goes back to stock XOS.
+
+## Build
+
+Windows with Git Bash, JDK 17+, Android SDK (platform 35, build-tools 35.0.0) and Python 3.
+
+```bash
+# signing.env (not in git): KS=<keystore path>  KS_PASS=<password>
+bash build.sh      # -> build/ASEM_Mods.apk
+bash make_zip.sh   # -> build/ASEM_Mods_vX.X_X6855.zip
+```
+
+## Contact
+
+- Telegram: [@Asemfuad](https://t.me/Asemfuad)
+- Instagram: [@asem.dev](https://instagram.com/asem.dev)
+
+<p align="center">© Asem. All rights reserved.</p>

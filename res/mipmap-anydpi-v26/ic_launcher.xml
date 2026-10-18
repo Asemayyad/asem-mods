@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ASEM Mods icon: plate (green in light mode, black in dark mode) + ASEM letters from the logo.
+     The monochrome layer lets themed-icon launchers (and the ASEM icon styles) recolor it. -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/ic_launcher_bg"/>
+    <foreground android:drawable="@drawable/ic_launcher_fg"/>
+    <monochrome android:drawable="@drawable/ic_launcher_mono"/>
+</adaptive-icon>

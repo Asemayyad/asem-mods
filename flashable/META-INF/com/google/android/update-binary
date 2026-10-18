@@ -1,0 +1,55 @@
+#!/system/bin/sh
+# ASEM Mods (LSPosed module) installer - Infinix X6855, XOS 16. Installs the module app via Magisk.
+# Works from recovery (TWRP / ASEM Recovery) and from the Magisk app (Modules > Install from storage).
+OUTFD=$2
+ZIPFILE=$3
+ui_print() { echo "ui_print $1" >> /proc/self/fd/$OUTFD; echo "ui_print" >> /proc/self/fd/$OUTFD; }
+progress() { echo "set_progress $1" >> /proc/self/fd/$OUTFD; }
+abort() { ui_print "!! $1"; ui_print "Nothing was installed."; exit 1; }
+ui_print "=================================="
+ui_print "  ASEM Mods"
+ui_print "  Power menu: Recovery + Restart SystemUI"
+ui_print "  Lock/unlock: louder sound x2..MAX + vibration"
+ui_print "  QS tiles: follow your icon color (Icon > Color)"
+ui_print "  Volume panel: sound mode + 3D haptics buttons"
+ui_print "  Home icons: 7 glass styles + 3D (ASEM Mods app)"
+ui_print "  by Asem | t.me/Asemfuad"
+ui_print "=================================="
+progress 0.1
+DEV=$(getprop ro.product.device)
+case "$DEV" in *X6855*|*x6855*) ;; *) abort "X6855 only (this is $DEV)";; esac
+[ -d /data/adb/magisk ] || abort "Magisk not found in /data (is data decrypted?)"
+[ -d /data/adb/modules/zygisk_lsposed ] || ui_print "Note: LSPosed not found - the mod needs LSPosed to work."
+MOD=asem_mods
+# the separate lock sound mod is now part of ASEM Mods: let Magisk remove it at the next boot
+# (its restore script then puts XOS's original lock / unlock sound settings back)
+if [ -d /data/adb/modules/asem_lock_sound ]; then
+  touch /data/adb/modules/asem_lock_sound/remove
+  rm -rf /data/adb/modules_update/asem_lock_sound
+fi
+# recovery has /tmp; in Android (Magisk app) use Magisk's TMPDIR or /dev/tmp
+if [ -n "$TMPDIR" ] && [ -d "$TMPDIR" ]; then TMP=$TMPDIR/$MOD; elif [ -d /tmp ]; then TMP=/tmp/$MOD; else TMP=/dev/tmp/$MOD; fi
+rm -rf $TMP; mkdir -p $TMP || abort "Cannot create $TMP"
+unzip -o "$ZIPFILE" 'module/*' -d $TMP >/dev/null 2>&1 || abort "Cannot unpack the zip"
+progress 0.5
+UPD=/data/adb/modules_update/$MOD
+rm -rf $UPD; mkdir -p /data/adb/modules_update
+cp -r $TMP/module $UPD || abort "Copy failed"
+mkdir -p /data/adb/modules/$MOD
+cp $UPD/module.prop /data/adb/modules/$MOD/module.prop
+touch /data/adb/modules/$MOD/update
+rm -f /data/adb/modules/$MOD/disable /data/adb/modules/$MOD/remove
+chown -R 0:0 $UPD /data/adb/modules/$MOD
+find $UPD /data/adb/modules/$MOD -type d -exec chmod 0755 {} \;
+find $UPD /data/adb/modules/$MOD -type f -exec chmod 0644 {} \;
+chcon -R u:object_r:system_file:s0 $UPD /data/adb/modules/$MOD 2>/dev/null
+rm -rf $TMP
+progress 1.0
+ui_print "Installed. Then:"
+ui_print " 1. Reboot (to System)"
+ui_print " 2. LSPosed > Modules > ASEM Mods > enable"
+ui_print "    scope: tick System UI AND XOS Launcher"
+ui_print " 3. Reboot once more"
+ui_print " 4. Open the ASEM Mods app > Apply"
+ui_print "Undo: disable in LSPosed, or remove in Magisk."
+exit 0

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.asem.mods" android:versionCode="20" android:versionName="5.9">
+    <uses-sdk android:minSdkVersion="34" android:targetSdkVersion="35"/>
+    <queries><package android:name="org.lsposed.manager"/></queries>
+    <application android:label="@string/app_name" android:icon="@mipmap/ic_launcher" android:hasCode="true">
+        <meta-data android:name="xposedmodule" android:value="true"/>
+        <meta-data android:name="xposeddescription" android:value="@string/xposed_description"/>
+        <meta-data android:name="xposedminversion" android:value="93"/>
+        <meta-data android:name="xposedsharedprefs" android:value="true"/>
+        <meta-data android:name="xposedscope" android:resource="@array/xposed_scope"/>
+        <activity android:name=".SettingsActivity" android:exported="true" android:label="@string/app_name"
+            android:theme="@style/AsemTheme">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+                <category android:name="de.robv.android.xposed.category.MODULE_SETTINGS"/>
+            </intent-filter>
+        </activity>
+        <receiver android:name=".RebootReceiver" android:exported="true"
+            android:permission="android.permission.STATUS_BAR_SERVICE">
+            <intent-filter><action android:name="com.asem.mods.REBOOT_RECOVERY"/></intent-filter>
+        </receiver>
+    </application>
+</manifest>
