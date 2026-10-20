@@ -104,4 +104,8 @@ bash make_zip.sh   # -> build/ASEM_Mods_vX.X_X6855.zip
 - Telegram: [@Asemfuad](https://t.me/Asemfuad)
 - Instagram: [@asem.dev](https://instagram.com/asem.dev)
 
+- To support me ♥: [paypal@AsemAyyad](https://www.paypal.com/paypalme/Mus7af)
+- To join our channel in Telegram [infinix_Note50Pro](https://t.me/infinix_note50pro)
+
+
 <p align="center">© Asem. All rights reserved.</p>
