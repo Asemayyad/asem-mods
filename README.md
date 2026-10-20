@@ -89,15 +89,9 @@ Everything can be switched on or off in the ASEM Mods app. Most changes apply ri
 
 Disable the module in LSPosed, or remove it in Magisk, then reboot. Everything goes back to stock XOS.
 
-## Build
+## Download
 
-Windows with Git Bash, JDK 17+, Android SDK (platform 35, build-tools 35.0.0) and Python 3.
-
-```bash
-# signing.env (not in git): KS=<keystore path>  KS_PASS=<password>
-bash build.sh      # -> build/ASEM_Mods.apk
-bash make_zip.sh   # -> build/ASEM_Mods_vX.X_X6855.zip
-```
+Dwonload from [here](https://github.com/Asemayyad/asem-mods/releases)
 
 ## Contact
 
